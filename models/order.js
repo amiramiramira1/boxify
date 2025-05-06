@@ -1,26 +1,33 @@
 const mongoose = require('mongoose');
 
- const orderSchema = new mongoose.Schema({
-    
+const orderSchema = new mongoose.Schema({
+    user: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User', // Reference to the User model
+        required: true,
+    },
+    box: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Box', // Reference to the Box model
+        
+        required: true,
+    },
     address: {
         type: String,
-        required: true,
+        required: false,
     },
-
     deliveryDate: {
         type: String,
-        required: true,
-    },
-    price: {
-        type: Number,
-        min: 1, // Optional field
+        default: () => {
+            const date = new Date();
+            date.setDate(date.getDate() + 3); // Set to 3 days from now
+            return date.toISOString().split('T')[0]; // Format as YYYY-MM-DD
+        },
     },
     createdAt: {
         type: Date,
         default: Date.now, // Automatically set creation date
     },
-
-  // Add any other fields you need for the order
 });
 
 const Order = mongoose.model('Order', orderSchema);

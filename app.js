@@ -7,6 +7,7 @@ const boxRouter = require("./routes/boxRoutes");
 const subRouter = require("./routes/subscriptionRoutes");
 const orderRouter = require("./routes/orderRoutes");
 const userRouter = require("./routes/userRoutes");
+const serviceRouter = require("./routes/serviceRoutes");
 
 //routing system
 app.use((req,res,next)=>{
@@ -31,6 +32,7 @@ try {
   console.error("Error while setting up the order routes:", error.message);
 }
 
+app.use("/services",serviceRouter);
 module.exports = app; 
 
 

@@ -2,10 +2,21 @@ const mongoose = require('mongoose');
 
 const subSchema = new mongoose.Schema({
   user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-  boxname: { type: String, required: true },
-  price: { type: Number, required: true },
+  box: { type: mongoose.Schema.Types.ObjectId, ref: 'Box', required: true },
+  startDate: {
+    type: Date,
+    default: Date.now,
+  },
+  nextPaymentDate: {
+    type: Date,
+    default: () => {
+      const nextMonth = new Date();
+      nextMonth.setMonth(nextMonth.getMonth() + 1);
+      return nextMonth;
+    },
+  },
 
-  nextpaymentdate: { type: Date, required: true },
+  
 });
 
 // Create a model for the boxes collection

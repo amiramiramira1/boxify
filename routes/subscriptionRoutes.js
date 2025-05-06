@@ -2,9 +2,8 @@ const express = require("express");
 const router = express.Router();
 const subController = require("../controllers/subController");
 
-router.route("/")
-         .get(subController.getAllSubcriptions)
-         .post( subController.createSubscription)
+router.route("/").get(subController.getAllSubcriptions)
+         
 
 
 router.route("/:subid")
@@ -12,7 +11,7 @@ router.route("/:subid")
         .patch( subController.updateSubscription)
         .delete(subController.deleteSubscription)
 
-
+router.get('/user/:userid', subController.getSubscriptionsByUser);
 
 
 
