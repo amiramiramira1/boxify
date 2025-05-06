@@ -18,6 +18,10 @@ const Subscription = require("../models/subscription"); // Import the Subscripti
             res.json(subscription);
         
         }
+
+
+    
+        
 //Create subscriptions
 
     const createSubscription = async (req,res)=>{
@@ -56,5 +60,7 @@ const Subscription = require("../models/subscription"); // Import the Subscripti
         getSubcriptionById,
         createSubscription,
         updateSubscription,
-        deleteSubscription
+        deleteSubscription,
+        
+    
     }

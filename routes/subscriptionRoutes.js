@@ -11,7 +11,8 @@ router.route("/:subid")
         .get( subController.getSubcriptionById)
         .patch( subController.updateSubscription)
         .delete(subController.deleteSubscription)
-  
+
+
 
 
 
