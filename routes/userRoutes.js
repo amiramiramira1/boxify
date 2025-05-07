@@ -1,27 +1,24 @@
 const express = require("express");
 const router = express.Router();
 const userController = require("../controllers/userController");
-const { body } = require("express-validator");
+const {
+    validateUserCreation,
+    validateUserUpdate,
+    validateUserId,
+  } = require("../validators/userValidator");
+const handleValidationErrors = require("../validators/errorHandler");
+
+ 
 
 
 router.route("/")
     .get(userController.getAllUsers)
-    .post(
-        [
-            body("name").notEmpty().withMessage("Name is required"),
-            body("email").isEmail().withMessage("Valid email is required"),
-            body("password").isLength({ min: 6 }).withMessage("Password must be at least 6 characters long")
-        ],
-        userController.createUser
-    );
-
-
+    .post(validateUserCreation, handleValidationErrors, userController.createUser);
 
 router.route("/:userid")
-        .get( userController.getUserById)
-        .patch( userController.updateUser)
-        .delete(userController.deleteUser)
-        
+    .get(validateUserId, handleValidationErrors, userController.getUserById)
+    .patch(validateUserUpdate, handleValidationErrors, userController.updateUser)
+    .delete(validateUserId, handleValidationErrors, userController.deleteUser);
 
 
 

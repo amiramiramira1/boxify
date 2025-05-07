@@ -40,7 +40,7 @@ const getSubscriptionsByUser = async (req, res) => {
                 return res.status(400).json({message:"Subscription id is required"});
             }
             try {
-                const subscription = await Subscription.findById(subId); //find the box by id
+                const subscription = await Subscription.findById(subId).populate('box').populate('user'); // Populate the box and user fields with their respective data
                 if(!subscription){
                     return res.status(404).json({message:"Subscription not found"});
                 }
@@ -82,7 +82,7 @@ const getSubscriptionsByUser = async (req, res) => {
             return res.status(400).json({message:"Subscription id is required"});
         }
         try {
-            let subscription = await Subscription.findByIdAndUpdate(subId,req.body,{new:true}); //find the box by id
+            let subscription = await Subscription.findByIdAndUpdate(subId, req.body, { new: true }).populate('box').populate('user'); // Find the subscription by id and populate box and user
             if(!subscription){
                 return res.status(404).json({message:"Subscription not found"});
             }

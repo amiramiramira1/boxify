@@ -1,7 +1,20 @@
 const Order = require("../models/order"); 
-const { validationResult } = require("express-validator");
+
 // Adjust the path as needed
 
+const createOrder = async (req, res) => {
+    
+    const newOrder = new Order(req.body);
+    try {
+      const savedOrder = await newOrder.save(); // Save the order to MongoDB
+      res.status(201).json(savedOrder); // Return the created order with a 201 status code
+    } catch (error) {
+      res.status(500).json({ message: "Failed to create order", error: error.message });
+    }
+  };
+
+
+  // Get all orders
 
 
 const getAllOrders =async (req, res) => {
@@ -53,10 +66,7 @@ const getOrderById = async(req, res) => {
 
 
 const updateOrder = async (req, res) => {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
-    }
+    
 
     // If validation passes, update the order
     const orderId = req.params.orderid;
@@ -94,5 +104,7 @@ const deleteOrder =  async (req, res) => {
     getOrderById,
     updateOrder,
     deleteOrder,
-    getOrdersByUser
+    getOrdersByUser,
+    createOrder
+
   };

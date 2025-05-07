@@ -15,13 +15,17 @@ const getBoxesLteBudget = async (req, res) => {
   if (!budget) {
     return res.status(400).json({ message: "Budget is required" });
   }
-  const boxes = await Box.find({ price: { $lte: budget } }); // Find all boxes with price less than or equal to the budget
-  if (boxes.length === 0) {
-    return res
-      .status(404)
-      .json({ message: "No boxes found within the budget" });
+  try {
+    const boxes = await Box.find({ price: { $lte: budget } }); // Find all boxes with price less than or equal to the budget
+    if (boxes.length === 0) {
+      return res
+        .status(404)
+        .json({ message: "No boxes found within the budget" });
+    }
+    res.json(boxes);
+  } catch (error) {
+    res.status(500).json({ message: "Error retrieving boxes", error: error.message });
   }
-  res.json(boxes);
 };
 
 const getBoxById = async (req, res) => {

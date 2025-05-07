@@ -1,15 +1,13 @@
 
 const Order = require("../models/order"); 
 const Box = require("../models/box");
+const User = require("../models/user");
 const Subscription = require("../models/subscription"); 
-const { validationResult } = require("express-validator");
+
 
 
 const BuyABox = async (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({ errors: errors.array() });
-  }
+  
 
   try {
     const { box } = req.body;
@@ -47,4 +45,21 @@ const BuyABox = async (req, res) => {
   }
 };
 
-module.exports = {BuyABox};
+const getAllInfo = async (req, res) => {
+  try {
+    const user = await User.findById(req.params.userid);
+    const orders = await Order.find({ user: req.params.userid }).populate("box");
+    const subscriptions = await Subscription.find({ user: req.params.userid }).populate("box");
+    
+    res.status(200).json({ user: user ,orders:orders, subscriptions:subscriptions });
+  }
+  catch (error) {
+    res.status(500).json({ message: "Failed to retrieve information", error: error.message });
+  }
+}
+
+
+module.exports = {
+  BuyABox,
+ getAllInfo
+};

@@ -1,5 +1,5 @@
 const User = require("../models/user"); // Import the User model
-const { validationResult } = require("express-validator");
+
 const bcrypt = require("bcrypt");
 
 const getAllUsers = async (req, res) => {
@@ -24,10 +24,7 @@ const getUserById = async (req, res) => {
 };
 
 const createUser = async (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({ errors: errors.array() });
-  }
+  
 
   try {
     const hashedPassword = await bcrypt.hash(req.body.password, 10); // Hash the password
