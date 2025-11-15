@@ -18,8 +18,8 @@ const getUserById = async (req, res) => {
   try {
     const user = await User.findById(req.params.userid);
     res.json(user);
-  } catch (err) {
-    res.status(404).json({ message: "User not found" + err.message });
+  } catch (error) {
+    res.status(404).json({ message: "User not found", error:error.message});
   }
 };
 

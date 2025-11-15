@@ -11,7 +11,7 @@ const getAllBoxes = async (req, res) => {
   }
 };
 const getBoxesLteBudget = async (req, res) => {
-  const budget = req.query.budget; // Get the budget from the query parameters
+  const budget = req.query.budget; // Get the budget from the query parameters/
   if (!budget) {
     return res.status(400).json({ message: "Budget is required" });
   }

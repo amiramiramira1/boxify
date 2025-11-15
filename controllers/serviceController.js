@@ -4,10 +4,7 @@ const Box = require("../models/box");
 const User = require("../models/user");
 const Subscription = require("../models/subscription"); 
 
-
-
 const BuyABox = async (req, res) => {
-  
 
   try {
     const { box } = req.body;
@@ -21,7 +18,7 @@ const BuyABox = async (req, res) => {
     if (Box_.type === 'monthly_grocery') {
       
              let subscription = new Subscription({
-               user: req.body.user,
+               user: req.body.user,                      
                box: req.body.box,
                
              });
