@@ -1,26 +1,29 @@
-const express = require("express");
+const express = require('express');
 const router = express.Router();
-const boxController = require("../controllers/boxController");
 const {
-        validateBoxCreation,
-        validateBoxUpdate,
-        validateBoxId,
-        validateBoxType,
-        validateBudgetQuery,
-} = require("../validators/boxValidator");
-const handleValidationErrors = require("../validators/errorHandler");
+  getBoxes, getBox, createBox, createCustomBox, updateBox, deleteBox, calculateCustomBox
+} = require('../controllers/boxController');
+const { protect } = require('../middleware/authMiddleware');
+const { adminOnly } = require('../middleware/adminMiddleware');
+const validate = require('../middleware/validate');
+const {
+  createBoxValidator,
+  updateBoxValidator,
+  createCustomBoxValidator,
+  calculateCustomBoxValidator,
+} = require('../validators/boxValidator');
 
-router.route("/")
-        .get(boxController.getAllBoxes)
-        .post(validateBoxCreation, handleValidationErrors, boxController.createBox);
+router.route('/')
+  .get(getBoxes)
+  .post(protect, adminOnly, createBoxValidator, validate, createBox);
 
-router.get("/budget", validateBudgetQuery, handleValidationErrors, boxController.getBoxesLteBudget);
+router.post('/custom/calculate', protect, calculateCustomBoxValidator, validate, calculateCustomBox);
+router.post('/custom', protect, createCustomBoxValidator, validate, createCustomBox);
 
-router.get("/type/:type", validateBoxType, handleValidationErrors, boxController.getBoxByType);
+router.route('/:id')
+  .get(getBox)
+  .put(protect, adminOnly, updateBoxValidator, validate, updateBox)
+  .delete(protect, adminOnly, deleteBox);
 
-router.route("/:boxid")
-        .get(validateBoxId, handleValidationErrors, boxController.getBoxById)
-        .patch( validateBoxUpdate, handleValidationErrors, boxController.updateBox)
-        .delete(validateBoxId, handleValidationErrors, boxController.deleteBox);
 
 module.exports = router;

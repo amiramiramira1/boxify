@@ -1,24 +1,19 @@
-const express = require("express");
+const express = require('express');
 const router = express.Router();
-const subController = require("../controllers/subController");
 const {
-        validateSubscriptionCreation,
-        validateSubscriptionUpdate,
-        validateSubscriptionId,
-        validateUserId,
-      } = require("../validators/subscriptionValidator");
-const handleValidationErrors = require("../validators/errorHandler");
+  createSubscription, getMySubscriptions, pauseSubscription,
+  cancelSubscription, getAllSubscriptions,
+} = require('../controllers/subscriptionController');
+const { protect } = require('../middleware/authMiddleware');
+const { adminOnly } = require('../middleware/adminMiddleware');
+const validate = require('../middleware/validate');
+const { createSubscriptionValidator } = require('../validators/subscriptionValidator');
+  
 
-router.route("/")
-  .get(subController.getAllSubcriptions)
-  .post(validateSubscriptionCreation, handleValidationErrors, subController.createSubscription);
-
-router.route("/:subid")
-  .get(validateSubscriptionId, handleValidationErrors, subController.getSubcriptionById)
-  .patch(validateSubscriptionUpdate, handleValidationErrors, subController.updateSubscription)
-  .delete(validateSubscriptionId, handleValidationErrors, subController.deleteSubscription);
-
-router.route('/user/:userid')
-  .get(validateUserId, handleValidationErrors, subController.getSubscriptionsByUser);
+router.post('/', protect, createSubscriptionValidator, validate, createSubscription);
+router.get('/my', protect, getMySubscriptions);
+router.put('/:id/pause', protect, pauseSubscription);
+router.put('/:id/cancel', protect, cancelSubscription);
+router.get('/', protect, adminOnly, getAllSubscriptions);
 
 module.exports = router;

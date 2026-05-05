@@ -1,110 +1,107 @@
-const Order = require("../models/order"); 
+const Order = require('../models/Order');
+const Box = require('../models/Box');
+const paginate = require('../utils/paginate');
 
-// Adjust the path as needed
-
-const createOrder = async (req, res) => {
-    
-    const newOrder = new Order(req.body);
-    try {
-      const savedOrder = await newOrder.save(); // Save the order to MongoDB
-      res.status(201).json(savedOrder); // Return the created order with a 201 status code
-    } catch (error) {
-      res.status(500).json({ message: "Failed to create order", error: error.message });
-    }
-  };
+const SERVING_MULTIPLIERS = { 1: 1, 2: 1.8, 4: 3.2, 6: 4.5 };
 
 
-  // Get all orders
-
-
-const getAllOrders =async (req, res) => {
-    
-    try {
-        const orders = await Order.find(); // Fetch all orders from MongoDB
-        res.json(orders);
-    } catch (error) {
-        res.status(500).json({  message: "Failed to fetch orders", error: error.message });
-    }
-    
-  }
-
-  // Get all orders by user id
-  const getOrdersByUser = async (req, res) => {
-    const userId = req.params.userid; // Extract user ID from request parameters
-    if (!userId) {
-      return res.status(400).json({ message: "User ID is required" });
-    }
-    try {
-      const orders = await Order.find({ user: userId }).populate('box').populate('user');// Populate user with specific fields
-      if (!orders || orders.length === 0) {
-        return res.status(404).json({ message: "No orders found for this user" });
-      }
-      res.json(orders);
-    } catch (error) {
-      res.status(500).json({ message: "Failed to fetch orders", error: error.message });
-    }
-  };
-
-const getOrderById = async(req, res) => {
-      const orderId = req.params.orderid;
-    
-      try {
-        // Find the order by its _id
-        const order = await Order.findById(orderId);
-    
-        // If the order is not found, return a 404 error
-        if (!order) {
-          return res.status(404).json({ error: "Order not found" });
-        }
-        res.json(order);
-      } catch (error) {
-        res.status(400).json({message: "Invalid ID or failed to fetch order", error: error.message });
-      }
-  }
-
-
-
-
-const updateOrder = async (req, res) => {
-    
-
-    // If validation passes, update the order
-    const orderId = req.params.orderid;
-    try {
-      const updatedOrder = await Order.findByIdAndUpdate(
-        orderId,
-        req.body,
-        { new: true } // Return the updated document
-      );
-      if (!updatedOrder) {
-        return res.status(404).json({ error: "Order not found" });
-      }
-      res.json(updatedOrder);
-    } catch (error) {
-      res.status(500).json({ message: "Failed to update order", error: error.message });
-    }
-  }
-
-const deleteOrder =  async (req, res) => {
-    
-  const orderId = req.params.orderid;
+// @route   GET /api/orders/my
+// @access  Private
+const getMyOrders = async (req, res) => {
   try {
-    const deletedOrder = await Order.findByIdAndDelete(orderId); // Delete the order by ID
-    if (!deletedOrder) {
-      return res.status(404).json({ error: "Order not found" });
-    }
-    res.json({ message: "Order deleted successfully" });
-  } catch (error) {
-    res.status(500).json({ message: "Failed to delete order" , error: error.message });
-  }
-    
-  }
-  module.exports = {
-    getAllOrders,
-    getOrderById,
-    updateOrder,
-    deleteOrder,
-    getOrdersByUser,
-    createOrder
+    const filter = { user: req.user.id };
+    if (req.query.status) filter.status = req.query.status;
 
-  };
+    const result = await paginate(
+      Order,
+      filter,
+      { page: req.query.page, limit: req.query.limit, sort: req.query.sort }
+    );
+
+    await Order.populate(result.data, [
+      { path: 'items.box', select: 'name image' },
+    ]);
+
+    res.status(200).json({
+      orders: result.data,
+      pagination: result.pagination,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// @route   GET /api/orders/:id
+// @access  Private
+const getOrderById = async (req, res) => {
+  try {
+    const order = await Order.findById(req.params.id).populate('items.box');
+
+    if (!order) return res.status(404).json({ message: 'Order not found' });
+
+    // Customers can only see their own orders; admins can see all
+    if (order.user.toString() !== req.user.id && req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'Not authorized to view this order' });
+    }
+
+    res.status(200).json({ order });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// @route   GET /api/orders  (Admin sees all orders)
+// @access  Private/Admin
+const getAllOrders = async (req, res) => {
+  try {
+    const filter = {};
+    if (req.query.status) filter.status = req.query.status;
+    if (req.query.orderType) filter.orderType = req.query.orderType;
+    if (req.query.userId) filter.user = req.query.userId;
+
+    const result = await paginate(
+      Order,
+      filter,
+      { page: req.query.page, limit: req.query.limit, sort: req.query.sort }
+    );
+
+    // Manually populate after paginate since we need multiple fields
+    await Order.populate(result.data, [
+      { path: 'user', select: 'name email' },
+      { path: 'items.box', select: 'name' },
+    ]);
+
+    res.status(200).json({
+      orders: result.data,
+      pagination: result.pagination,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// @route   PUT /api/orders/:id/status
+// @access  Private/Admin
+const updateOrderStatus = async (req, res) => {
+  try {
+    const { status } = req.body;
+    const validStatuses = ['pending', 'confirmed', 'preparing', 'shipped', 'delivered', 'cancelled'];
+
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({ message: 'Invalid status value' });
+    }
+
+    const order = await Order.findByIdAndUpdate(
+      req.params.id,
+      { status },
+      { new: true }
+    );
+
+    if (!order) return res.status(404).json({ message: 'Order not found' });
+    res.status(200).json({ message: 'Order status updated', order });
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+};
+
+module.exports = { getMyOrders, getOrderById, getAllOrders, updateOrderStatus };

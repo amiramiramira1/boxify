@@ -1,107 +1,135 @@
-const { body, param, query } = require("express-validator");
-const mongoose = require("mongoose");
+const { body } = require('express-validator');
 
-const validateBoxCreation = [
-  // Validate name
-  body("name")
-    .notEmpty()
-    .withMessage("Name is required")
-    .isLength({ min: 2 })
-    .withMessage("Name must be at least 2 characters long"),
+const VALID_DIET_TYPES = ['vegan', 'vegetarian', 'keto', 'paleo', 'standard', 'mixed'];
+const VALID_SERVING_SIZES = [1, 2, 4, 6];
 
-  // Validate type
-  body("type")
-    .notEmpty()
-    .withMessage("Type is required")
-    .isIn(["monthly_grocery", "mystery_box", "make-a-meal_box"])
-    .withMessage("Type must be one of 'monthly_grocery', 'mystery_box', or 'make-a-meal_box'"),
+// --- Create Pre-Made Box (Admin) ---
+exports.createBoxValidator = [
+  body('name')
+    .trim()
+    .notEmpty().withMessage('Box name is required')
+    .isLength({ min: 2, max: 100 }).withMessage('Box name must be between 2 and 100 characters'),
 
-  // Validate price
-  body("price")
-    .notEmpty()
-    .withMessage("Price is required")
-    .isFloat({ min: 0 })
-    .withMessage("Price must be a positive number"),
-
-  // Optional: Validate description
-  body("description")
+  body('description')
     .optional()
-    .isLength({ max: 500 })
-    .withMessage("Description must not exceed 500 characters"),
-];
+    .trim()
+    .isLength({ max: 500 }).withMessage('Description cannot exceed 500 characters'),
 
-const validateBoxUpdate = [
-  // Validate box ID in the route parameter
-  param("boxid")
-    .notEmpty()
-    .withMessage("Box ID is required")
-    .custom((value) => {
-      if (!mongoose.isValidObjectId(value)) {
-        throw new Error("Invalid Box ID");
+  body('meals')
+    .notEmpty().withMessage('Meals are required')
+    .isArray({ min: 1, max: 10 }).withMessage('A box must have between 1 and 10 meals')
+    .custom((meals) => {
+      // Custom rule: reject duplicate meal IDs in the same box
+      const uniqueMeals = new Set(meals);
+      if (uniqueMeals.size !== meals.length) {
+        throw new Error('A box cannot contain duplicate meals');
       }
       return true;
     }),
 
-  // Optional: Validate name
-  body("name")
-    .optional()
-    .isLength({ min: 2 })
-    .withMessage("Name must be at least 2 characters long"),
+  body('meals.*')
+    .isMongoId().withMessage('Each meal must be a valid MongoDB ID'),
 
-  // Optional: Validate type
-  body("type")
+  body('type')
     .optional()
-    .isIn(["monthly_grocery", "mystery_box", "make-a-meal_box"])
-    .withMessage("Type must be one of 'monthly_grocery', 'mystery_box', or 'make-a-meal_box'"),
+    .isIn(['pre-made', 'custom']).withMessage('Box type must be pre-made or custom'),
 
-  // Optional: Validate price
-  body("price")
+  body('dietType')
     .optional()
-    .isFloat({ min: 0 })
-    .withMessage("Price must be a positive number"),
+    .isIn(VALID_DIET_TYPES).withMessage(`Diet type must be one of: ${VALID_DIET_TYPES.join(', ')}`),
 
-  // Optional: Validate description
-  body("description")
+  body('image')
     .optional()
-    .isLength({ max: 500 })
-    .withMessage("Description must not exceed 500 characters"),
+    .trim()
+    .isURL().withMessage('Image must be a valid URL'),
 ];
 
-const validateBoxId = [
-  // Validate box ID in the route parameter
-  param("boxid")
-    .notEmpty()
-    .withMessage("Box ID is required")
-    .custom((value) => {
-      if (!mongoose.isValidObjectId(value)) {
-        throw new Error("Invalid Box ID");
+// --- Update Box (Admin) ---
+exports.updateBoxValidator = [
+  body('name')
+    .optional()
+    .trim()
+    .isLength({ min: 2, max: 100 }).withMessage('Box name must be between 2 and 100 characters'),
+
+  body('description')
+    .optional()
+    .trim()
+    .isLength({ max: 500 }).withMessage('Description cannot exceed 500 characters'),
+
+  body('meals')
+    .optional()
+    .isArray({ min: 1, max: 10 }).withMessage('A box must have between 1 and 10 meals')
+    .custom((meals) => {
+      const uniqueMeals = new Set(meals);
+      if (uniqueMeals.size !== meals.length) {
+        throw new Error('A box cannot contain duplicate meals');
       }
       return true;
     }),
+
+  body('meals.*')
+    .optional()
+    .isMongoId().withMessage('Each meal must be a valid MongoDB ID'),
+
+  body('dietType')
+    .optional()
+    .isIn(VALID_DIET_TYPES).withMessage(`Diet type must be one of: ${VALID_DIET_TYPES.join(', ')}`),
+
+  body('image')
+    .optional()
+    .trim()
+    .isURL().withMessage('Image must be a valid URL'),
+
+  body('isActive')
+    .optional()
+    .isBoolean().withMessage('isActive must be true or false'),
 ];
 
-const validateBoxType = [
-  // Validate type in the route parameter
-  param("type")
-    .notEmpty()
-    .withMessage("Box type is required")
-    .isIn(["monthly_grocery", "mystery_box", "make-a-meal_box"])
-    .withMessage("Type must be one of 'monthly_grocery', 'mystery_box', or 'make-a-meal_box'"),
+// --- Create Custom Box (Customer) ---
+exports.createCustomBoxValidator = [
+  body('meals')
+    .notEmpty().withMessage('Please select at least one meal')
+    .isArray({ min: 1, max: 10 }).withMessage('A custom box can have between 1 and 10 meals')
+    .custom((meals) => {
+      const uniqueMeals = new Set(meals);
+      if (uniqueMeals.size !== meals.length) {
+        throw new Error('A box cannot contain duplicate meals');
+      }
+      return true;
+    }),
+
+  body('meals.*')
+    .isMongoId().withMessage('Each meal must be a valid MongoDB ID'),
+
+  body('name')
+    .optional()
+    .trim()
+    .isLength({ min: 2, max: 100 }).withMessage('Box name must be between 2 and 100 characters'),
+
+  body('servingSize')
+    .notEmpty().withMessage('Serving size is required')
+    .isInt().withMessage('Serving size must be a number')
+    .isIn(VALID_SERVING_SIZES).withMessage(`Serving size must be one of: ${VALID_SERVING_SIZES.join(', ')}`),
 ];
 
-const validateBudgetQuery = [
-  // Validate budget in the query parameter
-  query("budget")
-    .notEmpty()
-    .withMessage("Budget is required")
-    .isFloat({ min: 0 })
-    .withMessage("Budget must be a positive number"),
-];
+// --- Calculate Custom Box Preview ---
+exports.calculateCustomBoxValidator = [
+  body('mealIds')
+    .notEmpty().withMessage('Please provide meal IDs')
+    .isArray({ min: 1, max: 10 }).withMessage('Please select between 1 and 10 meals')
+    .custom((mealIds) => {
+      const unique = new Set(mealIds);
+      if (unique.size !== mealIds.length) {
+        throw new Error('Duplicate meal IDs are not allowed');
+      }
+      return true;
+    }),
 
-module.exports = {
-  validateBoxCreation,
-  validateBoxUpdate,
-  validateBoxId,
-  validateBoxType,
-  validateBudgetQuery,
-};
+  body('mealIds.*')
+    .isMongoId().withMessage('Each meal ID must be a valid MongoDB ID'),
+
+  body('servingSize')
+    .optional()
+    .isInt().withMessage('Serving size must be a number')
+    .isIn(VALID_SERVING_SIZES).withMessage(`Serving size must be one of: ${VALID_SERVING_SIZES.join(', ')}`),
+];

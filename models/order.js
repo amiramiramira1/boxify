@@ -1,36 +1,68 @@
-const mongoose = require('mongoose');
+const mongoose = require("mongoose");
 
-const orderSchema = new mongoose.Schema({
-    user: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'User', // Reference to the User model
-        required: true,
-    },
-    box: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Box', // Reference to the Box model
-        
-        required: true,
-    },
-    address: {
-        type: String,
-        required: false,
-    },
-    deliveryDate: {
-        type: String,
-        default: () => {
-            const date = new Date();
-            date.setDate(date.getDate() + 3); // Set to 3 days from now
-            return date.toISOString().split('T')[0]; // Format as YYYY-MM-DD
-        },
-    },
-    createdAt: {
-        type: Date,
-        default: Date.now, // Automatically set creation date
-    },
+const orderItemSchema = new mongoose.Schema({
+  box: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Box",
+    required: true,
+  },
+  servingSize: {
+    type: Number,
+    enum: [1, 2, 4, 6],
+    required: true,
+  },
+  quantity: {
+    type: Number,
+    default: 1,
+  },
+  priceAtPurchase: {
+    type: Number,
+    required: true, // Snapshot of the price at order time
+  },
 });
 
-const Order = mongoose.model('Order', orderSchema);
+const orderSchema = new mongoose.Schema(
+  {
+    user: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
+    items: [orderItemSchema],
+    totalPrice: {
+      type: Number,
+      required: true,
+    },
+    status: {
+      type: String,
+      enum: [
+        "pending",
+        "confirmed",
+        "preparing",
+        "shipped",
+        "delivered",
+        "cancelled",
+      ],
+      default: "pending",
+    },
+    orderType: {
+      type: String,
+      enum: ["one-time", "subscription"],
+      default: "one-time",
+    },
+    deliveryAddress: {
+      street: String,
+      city: String,
+      country: String,
+      postalCode: String,
+    },
+    subscription: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Subscription",
+      default: null, // Null for one-time orders
+    },
+  },
+  { timestamps: true },
+);
 
-module.exports = Order;
-
+module.exports = mongoose.model("Order", orderSchema);

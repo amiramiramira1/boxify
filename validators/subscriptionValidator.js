@@ -1,102 +1,40 @@
-const { body, param } = require("express-validator");
-const mongoose = require("mongoose");
+const { body } = require('express-validator');
 
-const validateSubscriptionCreation = [
-    body("user")
-        .notEmpty()
-        .withMessage("User ID is required")
-        .custom((value) => {
-            if (!mongoose.isValidObjectId(value)) {
-                throw new Error("Invalid User ID");
-            }
-            return true;
-        }),
-    body("box")
-        .notEmpty()
-        .withMessage("Box ID is required")
-        .custom((value) => {
-            if (!mongoose.isValidObjectId(value)) {
-                throw new Error("Invalid Box ID");
-            }
-            return true;
-        }),
-    body("startDate")
-        .optional()
-        .isISO8601()
-        .toDate()
-        .withMessage("Start date must be a valid ISO 8601 date"),
-    body("nextPaymentDate")
-        .optional()
-        .isISO8601()
-        .toDate()
-        .withMessage("Next payment date must be a valid ISO 8601 date"),
+const VALID_SERVING_SIZES = [1, 2, 4, 6];
+const VALID_FREQUENCIES = ['weekly', 'monthly'];
+
+// --- Create Subscription ---
+exports.createSubscriptionValidator = [
+  body('boxId')
+    .notEmpty().withMessage('Box ID is required')
+    .isMongoId().withMessage('Invalid box ID — must be a valid MongoDB ObjectId'),
+
+  body('servingSize')
+    .notEmpty().withMessage('Serving size is required')
+    .isInt().withMessage('Serving size must be a whole number')
+    .isIn(VALID_SERVING_SIZES).withMessage(`Serving size must be one of: ${VALID_SERVING_SIZES.join(', ')}`),
+
+  body('frequency')
+    .notEmpty().withMessage('Frequency is required')
+    .isIn(VALID_FREQUENCIES).withMessage(`Frequency must be one of: ${VALID_FREQUENCIES.join(', ')}`),
 ];
 
-const validateSubscriptionUpdate = [
-    param("subid")
-        .notEmpty()
-        .withMessage("Subscription ID is required")
-        .custom((value) => {
-            if (!mongoose.isValidObjectId(value)) {
-                throw new Error("Invalid Subscription ID");
-            }
-            return true;
-        }),
-    body("user")
-        .optional()
-        .custom((value) => {
-            if (!mongoose.isValidObjectId(value)) {
-                throw new Error("Invalid User ID");
-            }
-            return true;
-        }),
-    body("box")
-        .optional()
-        .custom((value) => {
-            if (!mongoose.isValidObjectId(value)) {
-                throw new Error("Invalid Box ID");
-            }
-            return true;
-        }),
-    body("startDate")
-        .optional()
-        .isISO8601()
-        .toDate()
-        .withMessage("Start date must be a valid ISO 8601 date"),
-    body("nextPaymentDate")
-        .optional()
-        .isISO8601()
-        .toDate()
-        .withMessage("Next payment date must be a valid ISO 8601 date"),
+// --- Update Subscription Serving Size ---
+// Allows users to change their serving size without cancelling
+exports.updateSubscriptionValidator = [
+  body('servingSize')
+    .optional()
+    .isInt().withMessage('Serving size must be a whole number')
+    .isIn(VALID_SERVING_SIZES).withMessage(`Serving size must be one of: ${VALID_SERVING_SIZES.join(', ')}`),
+
+  body('frequency')
+    .optional()
+    .isIn(VALID_FREQUENCIES).withMessage(`Frequency must be one of: ${VALID_FREQUENCIES.join(', ')}`),
 ];
 
-const validateSubscriptionId = [
-    param("subid")
-        .notEmpty()
-        .withMessage("Subscription ID is required")
-        .custom((value) => {
-            if (!mongoose.isValidObjectId(value)) {
-                throw new Error("Invalid Subscription ID");
-            }
-            return true;
-        }),
+// --- Admin: Manually Generate Subscription Order ---
+exports.generateSubscriptionOrderValidator = [
+  body('subscriptionId')
+    .notEmpty().withMessage('Subscription ID is required')
+    .isMongoId().withMessage('Invalid subscription ID — must be a valid MongoDB ObjectId'),
 ];
-
-const validateUserId = [
-    param("userid")
-        .notEmpty()
-        .withMessage("User ID is required")
-        .custom((value) => {
-            if (!mongoose.isValidObjectId(value)) {
-                throw new Error("Invalid User ID");
-            }
-            return true;
-        }),
-];
-
-module.exports = {
-    validateSubscriptionCreation,
-    validateSubscriptionUpdate,
-    validateSubscriptionId,
-    validateUserId,
-};

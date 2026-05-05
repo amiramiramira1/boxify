@@ -1,115 +1,196 @@
-const Box = require("../models/box"); // Import the Box model
+const Box = require('../models/Box');
+const Meal = require('../models/Meal');
+const paginate = require('../utils/paginate');
 
-const getAllBoxes = async (req, res) => {
-  try {
-    const boxes = await Box.find(); //we need to array cuz find only return the first one
-  
-    res.json(boxes);
-  } catch (error) {
-    
-    res.status(500).json({ message: "Error retrieving boxes", error: error.message });
-  }
-};
-const getBoxesLteBudget = async (req, res) => {
-  const budget = req.query.budget; // Get the budget from the query parameters/
-  if (!budget) {
-    return res.status(400).json({ message: "Budget is required" });
-  }
-  try {
-    const boxes = await Box.find({ price: { $lte: budget } }); // Find all boxes with price less than or equal to the budget
-    if (boxes.length === 0) {
-      return res
-        .status(404)
-        .json({ message: "No boxes found within the budget" });
-    }
-    res.json(boxes);
-  } catch (error) {
-    res.status(500).json({ message: "Error retrieving boxes", error: error.message });
-  }
+// Helper: calculate box base price from its meals
+const calculateBoxPrice = async (mealIds) => {
+  const meals = await Meal.find({ _id: { $in: mealIds } });
+  const total = meals.reduce((sum, meal) => sum + meal.pricePerServing, 0);
+  return parseFloat(total.toFixed(2));
 };
 
-const getBoxById = async (req, res) => {
-  const boxId = req.params.boxid;
-  if (!boxId) {
-    return res.status(400).json({ message: "Box ID is required" });
-  }
-  try { 
-    const box = await Box.findById(boxId); //find the box by id
-    if (!box) {
-      return res.status(404).json({ message: "Box not found" });
-    }
-    res.json(box);
-  } catch (error) {
-    return res.status(404).json({ message: "Box not found"+error.message });
-  }
-};
-const getBoxByType = async (req, res) => {
-  const type = req.params.type;
-  if (!type) {
-    return res.status(400).json({ message: "Box type is required" });
-  }
+// Serving size multipliers
+const SERVING_MULTIPLIERS = { 1: 1, 2: 1.8, 4: 3.2, 6: 4.5 };
+
+// @route   GET /api/boxes
+// @access  Public
+const getBoxes = async (req, res) => {
   try {
-    const boxes = await Box.find({ type: type }); //find all boxes with the same type
-    if (boxes.length === 0) {
-      return res.status(404).json({ message: "No boxes found for this type" });
-    }
-    res.json(boxes);
+    const filter = { isActive: true };
+    if (req.query.dietType) filter.dietType = req.query.dietType;
+    if (req.query.type) filter.type = req.query.type;
+    if (req.query.maxPrice) filter.basePrice = { $lte: Number(req.query.maxPrice) };
+
+    const servingSize = parseInt(req.query.servingSize) || 2;
+    const SERVING_MULTIPLIERS = { 1: 1, 2: 1.8, 4: 3.2, 6: 4.5 };
+    const multiplier = SERVING_MULTIPLIERS[servingSize] || 1;
+
+    const result = await paginate(
+      Box,
+      filter,
+      { page: req.query.page, limit: req.query.limit, sort: req.query.sort },
+      { path: 'meals', populate: { path: 'ingredients.ingredient' } }
+    );
+
+    // Add computed price for the requested serving size to each box
+    const boxes = result.data.map((box) => ({
+      ...box.toObject(),
+      priceForServing: parseFloat((box.basePrice * multiplier).toFixed(2)),
+      requestedServingSize: servingSize,
+    }));
+
+    res.status(200).json({
+      boxes,
+      pagination: result.pagination,
+    });
   } catch (error) {
-    res.status(500).json({ message: "Error retrieving boxes", error: error.message });
+    res.status(500).json({ message: error.message });
   }
 };
+
+// @route   GET /api/boxes/:id
+// @access  Public
+const getBox = async (req, res) => {
+  try {
+    const box = await Box.findById(req.params.id).populate({
+      path: 'meals',
+      populate: { path: 'ingredients.ingredient' },
+    });
+    if (!box) return res.status(404).json({ message: 'Box not found' });
+    res.status(200).json({ box });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// @route   POST /api/boxes
+// @access  Private/Admin
 const createBox = async (req, res) => {
   try {
-    let box = new Box(req.body);
-    await box.save(); // Save the new box to the database
-    res.status(201).json({ message: "Box created successfully" });
+    const { name, description, image, type, meals, dietType } = req.body;
+    const basePrice = await calculateBoxPrice(meals);
+
+    const box = await Box.create({ name, description, image, type, meals, dietType, basePrice });
+    res.status(201).json({ message: 'Box created', box });
   } catch (error) {
-    console.error("Error creating box:", error);
-    res.status(400).json({ message: "Failed to create box", error: error.message });
+    res.status(400).json({ message: error.message });
   }
 };
 
+// @route   POST /api/boxes/custom
+// @access  Private (any logged-in user)
+// Allows a customer to build their own box from a list of meal IDs
+const createCustomBox = async (req, res) => {
+  try {
+    const { meals, name, servingSize } = req.body;
+    if (!meals || meals.length === 0) {
+      return res.status(400).json({ message: 'Please select at least one meal' });
+    }
+
+    const basePrice = await calculateBoxPrice(meals);
+    const multiplier = SERVING_MULTIPLIERS[servingSize] || 1;
+
+    const customBox = await Box.create({
+      name: name || `Custom Box by ${req.user.name}`,
+      type: 'custom',
+      meals,
+      basePrice,
+      dietType: 'mixed',
+    });
+
+    res.status(201).json({
+      message: 'Custom box created',
+      box: customBox,
+      priceForServing: parseFloat((basePrice * multiplier).toFixed(2)),
+    });
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+};
+
+// @route   PUT /api/boxes/:id
+// @access  Private/Admin
 const updateBox = async (req, res) => {
-  const boxId = req.params.boxid;
-  if (!boxId) {
-    return res.status(400).json({ message: "Box ID is required" });
-  }
   try {
-    let box = await Box.findByIdAndUpdate(boxId, req.body, { new: true }); //find the box by id
-    if (!box) {
-      return res.status(404).json({ message: "Box not found" });
+    const updateData = { ...req.body };
+    if (req.body.meals) {
+      updateData.basePrice = await calculateBoxPrice(req.body.meals);
     }
-    return res.json(box);
+    const box = await Box.findByIdAndUpdate(req.params.id, updateData, {
+      new: true, runValidators: true,
+    });
+    if (!box) return res.status(404).json({ message: 'Box not found' });
+    res.status(200).json({ message: 'Box updated', box });
   } catch (error) {
-   
-    return res.status(400).json({ message: "Failed to update box", error: error.message });
-    
+    res.status(400).json({ message: error.message });
   }
 };
 
+// @route   DELETE /api/boxes/:id
+// @access  Private/Admin
 const deleteBox = async (req, res) => {
-  const boxId = req.params.boxid;
-  if (!boxId) {
-    return res.status(400).json({ message: "Box ID is required" });
-  }
   try {
-    let box = await Box.findByIdAndDelete(boxId); 
-    if (!box) {
-      return res.status(404).json({ message: "Box not found" });
-    }
-    res.json({ message: "box deleted successfully" }); 
+    // Soft delete: set isActive to false instead of really deleting
+    const box = await Box.findByIdAndUpdate(req.params.id, { isActive: false }, { new: true });
+    if (!box) return res.status(404).json({ message: 'Box not found' });
+    res.status(200).json({ message: 'Box deactivated' });
   } catch (error) {
-    
-    res.status(500).json({ message: "Failed to delete box", error: error.message });
-    
+    res.status(500).json({ message: error.message });
   }
 };
-module.exports = {
-  getAllBoxes,
-  getBoxesLteBudget,
-  getBoxById,
-  getBoxByType,
-  createBox,
-  updateBox,
-  deleteBox,
+
+// @route   POST /api/boxes/custom/calculate
+// @access  Private
+// Preview price, calories, and allergens WITHOUT saving anything to the database
+const calculateCustomBox = async (req, res) => {
+  try {
+    const { mealIds, servingSize = 2 } = req.body;
+
+    if (!mealIds || mealIds.length === 0) {
+      return res.status(400).json({ message: 'Please provide at least one meal ID' });
+    }
+
+    // Fetch all selected meals with their full ingredient details
+    const meals = await Meal.find({ _id: { $in: mealIds } })
+      .populate('ingredients.ingredient');
+
+    if (meals.length === 0) {
+      return res.status(404).json({ message: 'No valid meals found for the provided IDs' });
+    }
+
+    const SERVING_MULTIPLIERS = { 1: 1, 2: 1.8, 4: 3.2, 6: 4.5 };
+    const multiplier = SERVING_MULTIPLIERS[servingSize] || 1;
+
+    // Calculate totals across all meals
+    let totalBasePrice = 0;
+    let totalCalories = 0;
+    const allergenSet = new Set(); // Use a Set to automatically avoid duplicates
+
+    for (const meal of meals) {
+      totalBasePrice += meal.pricePerServing;
+      totalCalories += meal.caloriesPerServing;
+
+      // Collect all allergens from all meals
+      meal.allergens.forEach((allergen) => allergenSet.add(allergen));
+    }
+
+    const priceForServingSize = parseFloat((totalBasePrice * multiplier).toFixed(2));
+
+    res.status(200).json({
+      preview: {
+        selectedMeals: meals.map((m) => ({ id: m._id, name: m.name })),
+        servingSize,
+        basePrice: parseFloat(totalBasePrice.toFixed(2)),
+        priceForServingSize,
+        totalCalories: Math.round(totalCalories * multiplier),
+        allergens: [...allergenSet], // Convert Set back to array
+        mealCount: meals.length,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
 };
+
+// Add to module.exports:
+module.exports = { getBoxes, getBox, createBox, createCustomBox, updateBox, deleteBox, calculateCustomBox };
